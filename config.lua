@@ -1,0 +1,3 @@
+UAV = {
+    AcePerm = 'uav.use',
+}
