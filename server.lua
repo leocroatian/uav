@@ -1,11 +1,10 @@
-local vehiclesUsed = {
-
-}
+local vehiclesUsed = {}
 
 RegisterNetEvent('UAV:Launch')
 RegisterNetEvent('UAV:FinishedTracking')
 RegisterNetEvent('UAV:LogVehicle')
 RegisterNetEvent('UAV:VehicleDamaged')
+RegisterNetEvent("UAV:VehicleDeleted")
 
 AddEventHandler('UAV:Launch', function()
     if IsPlayerAceAllowed(source, UAV.AcePerm) then
@@ -43,6 +42,8 @@ AddEventHandler('UAV:LogVehicle', function(vehicleUsed)
   }
 end)
 
+-- Handling when the vehicle is damaged or deleted
+
 AddEventHandler('UAV:VehicleDamaged', function(vehicleUsed)
     print(('[UAV] Vehicle with Net ID %s was damaged.'):format(vehicleUsed))
 
@@ -51,7 +52,6 @@ AddEventHandler('UAV:VehicleDamaged', function(vehicleUsed)
     vehiclesUsed[vehicleUsed] = nil
 end)
 
-RegisterNetEvent("UAV:VehicleDeleted")
 AddEventHandler("UAV:VehicleDeleted", function(vehicleUsed)
     print(("[UAV] Vehicle with Net ID %s has been deleted."):format(vehicleUsed))
 

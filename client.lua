@@ -142,6 +142,12 @@ AddEventHandler('UAV:StopTracking', function() -- Remove all of the active / cur
         RemoveBlip(blip)
         blips[blip] = nil
     end
+
+    lib.notify({
+        title = 'UAV Error',
+        description = 'Lost connection with vehicle...',
+        type = 'error'
+    })
 end)
 
 AddEventHandler('UAV:NoPerms', function()
@@ -168,7 +174,7 @@ RegisterNetEvent('UAV:FindPlayers', function(found_players)
     end
 
     if lib.progressBar({
-        duration = 10000,
+        duration = UAV.TimeToUse*1000,
         label = 'Launching UAV',
         useWhileDead = false,
         canCancel = true,
