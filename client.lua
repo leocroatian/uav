@@ -1,14 +1,30 @@
 RegisterNetEvent('UAV:NoPerms')
-
--- use in a vehicle and when the vehicle gets exploded or destroyed/deleted it will stop drawing blips
+RegisterNetEvent('UAV:StopTracking')
 
 local enemiesNear = true -- Set this to true to start checking
 local blips = {} -- Table to track blips tied to entity IDs
 local onCooldown = false
 local cooldownTimer
+local vehicleUsed
+
+local function vehicleHearbeat() -- Checking if the vehicle has been deleted
+    CreateThread(function()
+        while vehicleUsed ~= nil do
+            Wait(2000)
+
+            local veh = GetVehicleIndexFromEntityIndex(vehicleUsed)
+
+            if not DoesEntityExist(veh) then
+                TriggerServerEvent("UAV:VehicleDeleted", vehicleUsed)
+                vehicleUsed = nil
+            end
+        end
+    end)
+end
 
 local function checkEntities(entities)
     CreateThread(function()
+        enemiesNear = true
         while enemiesNear do
             local playerCoords = GetEntityCoords(PlayerPedId())
 
@@ -27,7 +43,7 @@ local function checkEntities(entities)
 
                 local distance = #(playerCoords - entityCoords)
 
-                if isDead == 1 or distance > 200.0 then -- example max range: 150 units
+                if isDead == 1 or distance > UAV.MaxDist then -- example max range: 150 units
                     if blips[id] then
                         RemoveBlip(blips[id])
                         blips[id] = nil
@@ -43,17 +59,22 @@ end
 local function StartTimer()
     onCooldown = true
     CreateThread(function()
-        cooldownTimer = 600000  -- 10 minutes
-        while cooldownTimer > 0 and onCooldown do
+        cooldownTimer = (600*1000)  -- 10 minutes
+        while onCooldown do
             Wait(1000)
-            cooldownTimer = cooldownTimer - 1
-            if cooldownTimer == 300000 then
+            cooldownTimer = cooldownTimer - 1000
+            if cooldownTimer == (300*1000) then
                 for _, playerId in pairs(blips) do
                     RemoveBlip(playerId)
                 end
+                TriggerServerEvent('UAV:FinishedTracking', (vehicleUsed)) -- Send back to the server that the tracking has been finished for the client and to proceed with removing the vehicle from the list.
+                vehicleUsed = nil
+            end
+
+            if cooldownTimer == 0 then
+                onCooldown = false
             end
         end
-        onCooldown = false
     end)
 end
 
@@ -82,7 +103,7 @@ local function DrawBlips(entities)
 
                 blips[id] = blip
                 foundEnemy = true
-            end 
+            end
         end
     end
 
@@ -93,11 +114,35 @@ local function DrawBlips(entities)
             type = 'error'
         })
     else
+        lib.notify({
+            title = 'UAV Launched',
+            description = 'You have launched a UAV - Starting scan in the area for all enemies.',
+            type = 'success',
+            icon='fa-solid fa-satellite',
+            iconColor = '#FFFFFF',
+        })
         StartTimer()
     end
 
     checkEntities(entities)
 end
+
+AddEventHandler('gameEventTriggered', function(name, args)
+    if name == 'CEventNetworkVehicleUndrivable' then -- Check if the vehicle has been blown up.
+        local vehId = args[1]
+
+        if vehId == vehicleUsed then
+            TriggerServerEvent('UAV:VehicleDamaged', vehId)
+        end
+    end
+end)
+
+AddEventHandler('UAV:StopTracking', function() -- Remove all of the active / current blips.
+    for _, blip in pairs(blips) do
+        RemoveBlip(blip)
+        blips[blip] = nil
+    end
+end)
 
 AddEventHandler('UAV:NoPerms', function()
     lib.notify({
@@ -105,11 +150,23 @@ AddEventHandler('UAV:NoPerms', function()
         description = 'You do not have permissions to use this command.',
         type = 'error'
     })
-
-    print('No perms')
 end)
 
 RegisterNetEvent('UAV:FindPlayers', function(found_players)
+    local ped_coords = GetEntityCoords(PlayerPedId())
+    vehicleUsed = lib.getClosestVehicle(ped_coords, 5.0, true)
+    local closestVeh = GetEntityModel(vehicleUsed)
+    local gameName = GetDisplayNameFromVehicleModel(closestVeh)
+
+    if closestVeh == nil or closestVeh == 0 or gameName ~= UAV.ModelName then
+        lib.notify({
+            title = 'UAV Error',
+            description = 'Could not find any close vehicle with satellite capabilities...',
+            type = 'error',
+        })
+        return
+    end
+
     if lib.progressBar({
         duration = 10000,
         label = 'Launching UAV',
@@ -130,7 +187,7 @@ RegisterNetEvent('UAV:FindPlayers', function(found_players)
             pos = vec3(-0.05, 0.0, 0.0),
             rot = vec3(0.0, 0.0, 0.0)
         },
-    }) 
+    })
     then
         if #found_players == 0 then
             lib.notify({
@@ -139,14 +196,9 @@ RegisterNetEvent('UAV:FindPlayers', function(found_players)
                 type = 'error'
             })
         else
-            lib.notify({
-                title = 'UAV Launched',
-                description = 'You have launched a UAV - Starting scan in the area for all enemies.',
-                type = 'success',
-                icon='fa-solid fa-satellite',
-                iconColor = '#FFFFFF',
-            })
             DrawBlips(found_players)
+            TriggerServerEvent('UAV:LogVehicle', (vehicleUsed))
+            vehicleHearbeat()
         end
     else
         lib.notify({
@@ -162,11 +214,11 @@ RegisterCommand("uav", function(source, args, rawCommand)
     if onCooldown then
         lib.notify({
             title = 'UAV Error',
-            description = ('You are on active cooldown for %s minutes'):format(math.round((cooldownTimer/60)/60, 2)),
+            description = ('You are on active cooldown for %s minutes'):format(math.round((cooldownTimer/1000)/60, 2)),
             type = 'error'
         })
         return
     end
-    
+
     TriggerServerEvent('UAV:Launch')
 end)
