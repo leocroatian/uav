@@ -59,11 +59,11 @@ end
 local function StartTimer()
     onCooldown = true
     CreateThread(function()
-        cooldownTimer = (600*1000)  -- 10 minutes
+        cooldownTimer = (UAV.Cooldown*1000)
         while onCooldown do
             Wait(1000)
             cooldownTimer = cooldownTimer - 1000
-            if cooldownTimer == (300*1000) then
+            if cooldownTimer == ((UAV.Cooldown/2)*1000) then -- When the timer hits half it will automatically start turning the blips off
                 for _, playerId in pairs(blips) do
                     RemoveBlip(playerId)
                 end
