@@ -38,6 +38,13 @@ local function checkEntities(entities)
                 local player = GetPlayerFromServerId(id)
                 local playerPed = GetPlayerPed(player)
 
+                if not player or not playerPed then -- check if the player exists in the server
+                    if blips[id] then
+                        RemoveBlip(blips[id])
+                        blips[id] = nil
+                    end
+                end
+
                 local entityCoords = GetEntityCoords(playerPed)
                 local isDead = IsEntityDead(playerPed)
 
@@ -60,7 +67,16 @@ local function StartTimer()
     onCooldown = true
     CreateThread(function()
         cooldownTimer = (UAV.Cooldown*1000)
+
+        SendNUIMessage({
+            type = 'startTimer',
+            time = cooldownTimer/2
+        })
+
+        SetNuiFocus(false, false)
+
         while onCooldown do
+
             Wait(1000)
             cooldownTimer = cooldownTimer - 1000
             if cooldownTimer == ((UAV.Cooldown/2)*1000) then -- When the timer hits half it will automatically start turning the blips off
@@ -73,6 +89,9 @@ local function StartTimer()
 
             if cooldownTimer == 0 then
                 onCooldown = false
+                SendNUIMessage({
+                    type = "stopTimer"
+                })
             end
         end
     end)
@@ -147,6 +166,10 @@ AddEventHandler('UAV:StopTracking', function() -- Remove all of the active / cur
         title = 'UAV Error',
         description = 'Lost connection with vehicle...',
         type = 'error'
+    })
+
+    SendNUIMessage({
+        type = "stopTimer"
     })
 end)
 

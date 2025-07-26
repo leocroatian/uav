@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>UAV Timer</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+    }
+
+    #timer {
+      display: none;
+      position: absolute;
+      top: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      background-color: rgba(37, 37, 37, 0.85);
+      color: white;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: bold;
+      box-shadow: 0 0 10px rgba(0,0,0,0.4);
+    }
+  </style>
+</head>
+<body>
+  <div id="timer">0:00</div>
+
+  <script>
+    let interval = null;
+
+    function formatTime(ms) {
+      let totalSeconds = Math.floor(ms / 1000);
+      let minutes = Math.floor(totalSeconds / 60);
+      let seconds = totalSeconds % 60;
+      return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    }
+
+    window.addEventListener('message', function (event) {
+      const data = event.data;
+      const timer = document.getElementById('timer');
+
+      if (data.type === 'startTimer') {
+        timer.style.display = 'block';
+        let timeLeft = data.time;
+
+        if (interval) clearInterval(interval);
+
+        interval = setInterval(() => {
+          if (timeLeft <= 0) {
+            timer.textContent = 'Tracking ended';
+            clearInterval(interval);
+            return;
+          }
+
+          timer.textContent = `${formatTime(timeLeft)}`;
+          timeLeft -= 1000;
+        }, 1000);
+      }
+
+      if (data.type === 'stopTimer') {
+        if (interval) clearInterval(interval);
+        timer.style.display = 'none';
+      }
+    });
+  </script>
+</body>
+</html>

@@ -11,7 +11,10 @@ lua54 'yes'
 client_script 'client.lua'
 server_script 'server.lua'
 
+ui_page 'html/index.html'
+
 shared_scripts {
     '@ox_lib/init.lua',
     'config.lua',
+    'html/index.html'
 }
