@@ -9,14 +9,15 @@ local vehicleUsed
 
 local function vehicleHearbeat() -- Checking if the vehicle has been deleted
     CreateThread(function()
-        while vehicleUsed ~= nil do
+        while vehicleUsed do
             Wait(2000)
 
-            local veh = GetVehicleIndexFromEntityIndex(vehicleUsed)
+            if vehicleUsed == nil then return end
 
-            if not DoesEntityExist(veh) then
-                TriggerServerEvent("UAV:VehicleDeleted", vehicleUsed)
-                vehicleUsed = nil
+            local doesExist = DoesEntityExist(vehicleUsed)
+
+            if not doesExist then
+                TriggerServerEvent("UAV:VehicleDeleted", vehicleUsed, 'deleted')
             end
         end
     end)
@@ -26,13 +27,20 @@ local function checkEntities(entities)
     CreateThread(function()
         enemiesNear = true
         while enemiesNear do
-            local playerCoords = GetEntityCoords(PlayerPedId())
+            local playerPed = PlayerPedId()
+            if IsEntityDead(playerPed) == 1 then
+                TriggerServerEvent('UAV:FinishedTracking', (vehicleUsed))
+                return
+            end
+
+            local playerCoords = GetEntityCoords(playerPed)
 
             if next(blips) == nil then
                 enemiesNear = false
             end
 
             for _, player in pairs(entities) do
+
                 local id = player.id
 
                 local player = GetPlayerFromServerId(id)
@@ -60,6 +68,8 @@ local function checkEntities(entities)
 
             Wait(1000) -- Avoid spamming every frame
         end
+
+        TriggerServerEvent('UAV:FinishedTracking', (vehicleUsed))
     end)
 end
 
@@ -76,15 +86,15 @@ local function StartTimer()
         SetNuiFocus(false, false)
 
         while onCooldown do
-
             Wait(1000)
             cooldownTimer = cooldownTimer - 1000
             if cooldownTimer == ((UAV.Cooldown/2)*1000) then -- When the timer hits half it will automatically start turning the blips off
-                for _, playerId in pairs(blips) do
-                    RemoveBlip(playerId)
+                if next(blips) ~= nil then
+                    for _, playerId in pairs(blips) do
+                        RemoveBlip(playerId)
+                    end
+                    TriggerServerEvent('UAV:FinishedTracking', (vehicleUsed)) -- Send back to the server that the tracking has been finished for the client and to proceed with removing the vehicle from the list.
                 end
-                TriggerServerEvent('UAV:FinishedTracking', (vehicleUsed)) -- Send back to the server that the tracking has been finished for the client and to proceed with removing the vehicle from the list.
-                vehicleUsed = nil
             end
 
             if cooldownTimer == 0 then
@@ -151,21 +161,35 @@ AddEventHandler('gameEventTriggered', function(name, args)
         local vehId = args[1]
 
         if vehId == vehicleUsed then
-            TriggerServerEvent('UAV:VehicleDamaged', vehId)
+            TriggerServerEvent('UAV:VehicleDeleted', vehId, 'destroyed')
         end
     end
 end)
 
-AddEventHandler('UAV:StopTracking', function() -- Remove all of the active / current blips.
-    for _, blip in pairs(blips) do
-        RemoveBlip(blip)
-        blips[blip] = nil
+AddEventHandler('UAV:StopTracking', function(type, reason) -- Remove all of the active / current blips.
+    if next(blips) ~= nil then
+        for _, blip in pairs(blips) do
+            RemoveBlip(blip)
+            blips[blip] = nil
+        end
+    end
+
+    vehicleUsed = nil
+
+    local description = ""
+
+    if type == 0 then
+        description = "Lost connection with vehicle."
+    elseif type == 1 then
+        description = "No more enemies in the AO."
+    elseif type == 2 then
+        description = "Tracking Finished"
     end
 
     lib.notify({
-        title = 'UAV Error',
-        description = 'Lost connection with vehicle...',
-        type = 'error'
+        title = 'UAV',
+        description = description,
+        type = 'warning'
     })
 
     SendNUIMessage({
@@ -187,7 +211,8 @@ RegisterNetEvent('UAV:FindPlayers', function(found_players)
     local closestVeh = GetEntityModel(vehicleUsed)
     local gameName = GetDisplayNameFromVehicleModel(closestVeh)
 
-    if closestVeh == nil or closestVeh == 0 or gameName ~= UAV.ModelName then
+    -- if closestVeh == nil or closestVeh == 0 or gameName ~= UAV.ModelName then
+    if closestVeh == nil or closestVeh == 0 then
         lib.notify({
             title = 'UAV Error',
             description = 'Could not find any close vehicle with satellite capabilities...',
